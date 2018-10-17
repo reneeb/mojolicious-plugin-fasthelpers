@@ -43,3 +43,49 @@ HERE
 }
 
 1;
+
+=encoding utf8
+
+=head1 NAME
+
+Mojolicious::Plugin::FastHelpers - Faster helpers for your Mojolicious application
+
+=head1 SYNOPSIS
+
+  use Mojolicious::Lite;
+
+  # Add your helpers
+  helper "what.ever" => sub { return 42 };
+
+  # Need to be called after all helpers have been added
+  plugin "FastHelpers";
+  app->start;
+
+=head1 DESCRIPTION
+
+L<Mojolicious::Plugin::FastHelpers> is a L<Mojolicious> plugin which can speed
+up your helpers, by avoiding C<AUTOLOAD>.
+
+=head1 METHODS
+
+=head2 register
+
+Will create new classes for your application and
+L<Mojolicious/controller_class>, and monkey patch in all the helpers.
+
+=head1 AUTHOR
+
+Jan Henning Thorsen
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2018, Jan Henning Thorsen
+
+This program is free software, you can redistribute it and/or modify it under
+the terms of the Artistic License version 2.0.
+
+=head1 SEE ALSO
+
+L<Mojolicious>
+
+=cut
