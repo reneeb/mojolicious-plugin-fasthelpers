@@ -110,7 +110,7 @@ L<Mojolicious::Plugin::FastHelpers> is a L<Mojolicious> plugin which can speed
 up your helpers, by avoiding C<AUTOLOAD>.
 
 This module is currently EXPERIMENTAL. There might even be some security
-isseus, so use it with care.
+issues, so use it with care.
 
 =head2 Benchmarks
 
