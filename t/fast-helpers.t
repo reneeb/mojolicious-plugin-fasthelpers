@@ -16,6 +16,7 @@ $app->plugin('FastHelpers');
 like ref($app), qr/^Mojolicious::__FAST__::\w{32}/, 'manipulated app';
 is $app->controller_class, 'Mojolicious::Plugin::FastHelpers::Controller', 'changed controller_class';
 is $app->answer, 42, 'answer';
+ok !$app->can('answer'), 'can answer';
 isa_ok $app->what->ever, $app->controller_class, 'got what.ever';
 
 my $same_helpers = Mojolicious->new;

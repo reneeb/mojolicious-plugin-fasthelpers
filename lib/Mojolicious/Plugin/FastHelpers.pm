@@ -32,15 +32,18 @@ sub _apply_helpers_from_app {
 sub _monkey_patch_class {
   my ($target, $app) = @_;
 
+  my %hidden;
   for my $name (keys %{$app->renderer->helpers}) {
     my ($method) = split /\./, $name;
     if ($target->can($method)) {
       warn qq/[FastHelpers] $target->can("$method")\n/ if DEBUG;
     }
     elsif ($target->isa('Mojolicious::Controller')) {
+      $hidden{$name} = 1;
       monkey_patch $target, $method => $app->renderer->get_helper($method);
     }
     else {
+      $hidden{$name} = 1;
       monkey_patch $target, $method => sub {
         my $app    = shift;
         my $helper = $app->renderer->get_helper($method);
@@ -51,6 +54,9 @@ sub _monkey_patch_class {
 
   # Speed up $c->app() by avoiding Mojolicious::Plugin::FastHelpers::Controller->app()
   $target->attr('app') if $target->isa('Mojolicious::Controller');
+
+  # Hide helpers
+  monkey_patch $target, can => sub { return $hidden{$_[1]} ? undef : UNIVERSAL::can($_[0], $_[1]) };
 }
 
 1;
