@@ -10,41 +10,34 @@ our $VERSION = '0.01';
 
 sub register {
   my ($self, $app, $config) = @_;
-  _apply_helpers_from_app($app, $app);
+  bless $app, _generate_class_with_helpers($app, $app);
   $app->controller_class('Mojolicious::Plugin::FastHelpers::Controller');
 }
 
-sub _apply_helpers_from_app {
+sub _generate_class_with_helpers {
   my ($target, $app) = @_;
   my @helpers    = sort keys %{$app->renderer->helpers};
   my $superclass = ref $target || $target;
   my $new_class  = join '::', $superclass, '__FAST__', md5_sum(join '::', @helpers);
 
-  unless ($new_class->can('new')) {
-    warn qq/[FastHelpers] $new_class->isa("$superclass")\n/ if DEBUG;
-    eval qq(package $new_class;use Mojo::Base "$superclass";1) or die $@;
-    _monkey_patch_class($new_class, $app);
-  }
+  # Already generated
+  return $new_class if $new_class->can('new');
 
-  bless $target, $new_class;
-}
-
-sub _monkey_patch_class {
-  my ($target, $app) = @_;
-
+  warn qq/[FastHelpers] $new_class->isa("$superclass")\n/ if DEBUG;
+  eval qq(package $new_class;use Mojo::Base "$superclass";1) or die $@;
   my %hidden;
   for my $name (keys %{$app->renderer->helpers}) {
     my ($method) = split /\./, $name;
-    if ($target->can($method)) {
-      warn qq/[FastHelpers] $target->can("$method")\n/ if DEBUG;
+    if ($new_class->can($method)) {
+      warn qq/[FastHelpers] $new_class->can("$method")\n/ if DEBUG;
     }
-    elsif ($target->isa('Mojolicious::Controller')) {
+    elsif ($new_class->isa('Mojolicious::Controller')) {
       $hidden{$name} = 1;
-      monkey_patch $target, $method => $app->renderer->get_helper($method);
+      monkey_patch $new_class, $method => $app->renderer->get_helper($method);
     }
     else {
       $hidden{$name} = 1;
-      monkey_patch $target, $method => sub {
+      monkey_patch $new_class, $method => sub {
         my $app    = shift;
         my $helper = $app->renderer->get_helper($method);
         $app->build_controller->$helper(@_);
@@ -53,10 +46,12 @@ sub _monkey_patch_class {
   }
 
   # Speed up $c->app() by avoiding Mojolicious::Plugin::FastHelpers::Controller->app()
-  $target->attr('app') if $target->isa('Mojolicious::Controller');
+  $new_class->attr('app') if $new_class->isa('Mojolicious::Controller');
 
   # Hide helpers
-  monkey_patch $target, can => sub { return $hidden{$_[1]} ? undef : UNIVERSAL::can($_[0], $_[1]) };
+  monkey_patch $new_class, can => sub { return $hidden{$_[1]} ? undef : UNIVERSAL::can($_[0], $_[1]) };
+
+  return $new_class;
 }
 
 1;
@@ -114,6 +109,25 @@ up your helpers, by avoiding C<AUTOLOAD>.
 
 This module is currently EXPERIMENTAL. There might even be some security
 isseus, so use it with care.
+
+=head2 Benchmarks
+
+There is a benchmark test bundled with this distribution, if you want to run it
+yourself, but here is a quick overview:
+
+  $ TEST_BENCHMARK=200000 prove -vl t/benchmark.t
+  ok 1 - fast_app 1.81834 wallclock secs ( 1.81 usr +  0.00 sys =  1.81 CPU) @ 110497.24/s (n=200000)
+  ok 2 - fast_controller 0.0192509 wallclock secs ( 0.02 usr +  0.00 sys =  0.02 CPU) @ 10000000.00/s (n=200000)
+  ok 3 - normal_app 2.02593 wallclock secs ( 2.02 usr +  0.00 sys =  2.02 CPU) @ 99009.90/s (n=200000)
+  ok 4 - normal_controller 0.619834 wallclock secs ( 0.62 usr +  0.00 sys =  0.62 CPU) @ 322580.65/s (n=200000)
+  ok 5 - fast_app (1.81s) is not slower than normal_app (2.02s)
+  ok 6 - fast_controller (0.02s) is not slower than normal_controller (0.62s)
+
+                          Rate normal_app fast_app normal_controller fast_controller
+  normal_app           99010/s         --     -10%              -69%            -99%
+  fast_app            110497/s        12%       --              -66%            -99%
+  normal_controller   322581/s       226%     192%                --            -97%
+  fast_controller   10000000/s     10000%    8950%             3000%              --
 
 =head1 METHODS
 

@@ -3,15 +3,27 @@ use Mojo::Base 'Mojolicious::Controller';
 
 require Mojolicious::Plugin::FastHelpers;
 
+our %FF;    # Consider this internal
+
 sub app {
   my $self = shift;
-  $self->Mojolicious::Plugin::FastHelpers::_apply_helpers_from_app(@_) if @_;
+
+  if (@_) {
+    my $key = join '::', ref $self, $_[0];
+    bless $self, $FF{$key} ||= Mojolicious::Plugin::FastHelpers::_generate_class_with_helpers($self, $_[0]);
+  }
+
   $self->SUPER::app(@_);
 }
 
 sub new {
   my $self = shift->SUPER::new(@_);
-  $self->Mojolicious::Plugin::FastHelpers::_apply_helpers_from_app($self->{app}) if $self->{app};
+
+  if ($self->{app}) {
+    my $key = join '::', ref $self, $self->{app};
+    bless $self, $FF{$key} ||= Mojolicious::Plugin::FastHelpers::_generate_class_with_helpers($self, $self->{app});
+  }
+
   return $self;
 }
 
