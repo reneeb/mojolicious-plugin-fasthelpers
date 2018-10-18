@@ -13,8 +13,8 @@ my $app = Mojolicious->new;
 $app->helper('answer'    => sub {42});
 $app->helper('what.ever' => sub {shift});
 $app->plugin('FastHelpers');
-like ref($app), qr/^Mojolicious::FastHelpers::\w{32}/, 'manipulated app';
-like $app->controller_class, qr/^Mojolicious::Controller::FastHelpers::\w{32}/, 'manipulated controller_class';
+like ref($app), qr/^Mojolicious::__FAST__::\w{32}/, 'manipulated app';
+is $app->controller_class, 'Mojolicious::Plugin::FastHelpers::Controller', 'changed controller_class';
 is $app->answer, 42, 'answer';
 isa_ok $app->what->ever, $app->controller_class, 'got what.ever';
 
@@ -31,6 +31,5 @@ $not_same_helpers->helper('what.not'  => sub {41});
 $not_same_helpers->helper('answer'    => sub {42});
 $not_same_helpers->plugin('FastHelpers');
 isnt ref($not_same_helpers), ref($app), 'not same controller_class';
-isnt $not_same_helpers->controller_class, $app->controller_class, 'not same controller_class';
 
 done_testing;
