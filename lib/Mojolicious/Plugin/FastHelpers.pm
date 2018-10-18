@@ -51,7 +51,7 @@ sub _generate_class_with_helpers {
   $new_class->attr('app') if $new_class->isa('Mojolicious::Controller');
 
   # Hide helpers
-  monkey_patch $new_class, can => sub { return $hidden{$_[1]} ? undef : UNIVERSAL::can($_[0], $_[1]) };
+  monkey_patch $new_class, can => sub { return $hidden{$_[1]} ? undef : $_[0]->SUPER::can($_[1]) };
 
   return $new_class;
 }

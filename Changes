@@ -1,4 +1,11 @@
 Revision history for perl distribution Mojolicious-Plugin-FastHelpers
 
+0.02 Not Released
+ - Improved can() resolving
+   Contributor: Grinnz
+
 0.01 2018-10-18T14:03:02+0900
- - Started project
+ - Will monkey patch helpers into a custom app class
+ - Will monkey patch helpers into a custom controller class
+ - Modifies $app->controller_class
+ - Require controllers to inherit from Mojolicious::Plugin::FastHelpers::Controller
