@@ -11,7 +11,9 @@ our $VERSION = '0.01';
 sub register {
   my ($self, $app, $config) = @_;
   bless $app, _generate_class_with_helpers($app, $app);
-  $app->controller_class('Mojolicious::Plugin::FastHelpers::Controller');
+
+  $app->controller_class(_generate_class_with_helpers($app->controller_class, $app))
+    unless $app->controller_class->isa('Mojolicious::Plugin::FastHelpers::Controller');
 }
 
 sub _generate_class_with_helpers {
