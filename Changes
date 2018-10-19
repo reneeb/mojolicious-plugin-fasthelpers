@@ -1,6 +1,6 @@
 Revision history for perl distribution Mojolicious-Plugin-FastHelpers
 
-0.02 Not Released
+0.02 2018-10-19T11:13:38+0900
  - Extended EXPERIMENTAL warning
  - Improved can() resolving
  - Avoid generating extra packages
