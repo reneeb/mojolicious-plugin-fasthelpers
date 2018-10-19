@@ -96,8 +96,15 @@ up your helpers, by avoiding C<AUTOLOAD>.
 It does this by injecting some new classes into the inheritance tree of
 L<Mojolicious> and L<Mojolicious::Controller>.
 
-This module is currently EXPERIMENTAL. There might even be some security
-issues, so use it with care.
+=head2 Warning
+
+This module must be considered EXPERIMENTAL. There might even be some security
+isseus, so use it with care.
+
+It is not currently used in production anywhere I know of, and I'm not sure if
+I can endorce such usage.
+
+This is strictly a (unproven) proof of concept.
 
 =head2 Benchmarks
 

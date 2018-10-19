@@ -1,8 +1,9 @@
 Revision history for perl distribution Mojolicious-Plugin-FastHelpers
 
 0.02 Not Released
+ - Extended EXPERIMENTAL warning
  - Improved can() resolving
-   Contributor: Grinnz
+ - Avoid generating extra packages
 
 0.01 2018-10-18T14:03:02+0900
  - Will monkey patch helpers into a custom app class
