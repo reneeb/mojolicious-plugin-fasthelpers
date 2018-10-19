@@ -68,7 +68,10 @@ sub _add_helper_method {
   };
 
   monkey_patch 'Mojolicious::Controller::_FastHelpers' => $name => sub {
-    return shift->helpers->$name(@_);
+    my $c = shift;
+    Carp::croak qq/Can't locate object method "$name" via package "@{[ref $c]}"/
+      unless my $helper = $c->app->renderer->get_helper($name);
+    return $c->$helper(@_);
   };
 }
 
