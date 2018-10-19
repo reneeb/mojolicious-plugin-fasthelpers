@@ -99,7 +99,7 @@ L<Mojolicious> and L<Mojolicious::Controller>.
 =head2 Warning
 
 This module must be considered EXPERIMENTAL. There might even be some security
-isseus, so use it with care.
+issues, so use it with care.
 
 It is not currently used in production anywhere I know of, and I'm not sure if
 I can endorce such usage.
