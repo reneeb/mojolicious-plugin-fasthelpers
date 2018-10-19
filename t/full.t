@@ -22,7 +22,7 @@ sub startup {
 }
 
 package MyApp::Controller::Test;
-use Mojo::Base "Mojolicious::Plugin::FastHelpers::Controller";
+use Mojo::Base "Mojolicious::Controller";
 sub bar { shift->render(text => "ok") }
 
 MyApp->new;

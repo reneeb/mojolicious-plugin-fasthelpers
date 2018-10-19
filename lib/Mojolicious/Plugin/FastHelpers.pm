@@ -1,8 +1,7 @@
 package Mojolicious::Plugin::FastHelpers;
 use Mojo::Base 'Mojolicious::Plugin';
 
-use Mojo::Util qw(md5_sum monkey_patch);
-use Mojolicious::Plugin::FastHelpers::Controller;
+use Mojo::Util 'monkey_patch';
 
 use constant DEBUG => $ENV{MOJO_FASTHELPERS_DEBUG} || 0;
 
@@ -10,50 +9,63 @@ our $VERSION = '0.01';
 
 sub register {
   my ($self, $app, $config) = @_;
-  bless $app, _generate_class_with_helpers($app, $app);
 
-  $app->controller_class(_generate_class_with_helpers($app->controller_class, $app))
-    unless $app->controller_class->isa('Mojolicious::Plugin::FastHelpers::Controller');
+  $self->_add_helper_classes;
+  $self->_monkey_patch_add_helper($app);
 }
 
-sub _generate_class_with_helpers {
-  my ($target, $app) = @_;
-  my @helpers    = sort keys %{$app->renderer->helpers};
-  my $superclass = ref $target || $target;
-  my $new_class  = join '::', $superclass, '__FAST__', md5_sum(join '::', @helpers);
+sub _monkey_patch_add_helper {
+  my ($self, $app) = @_;
+  my $renderer = $app->renderer;
 
-  # Already generated
-  return $new_class if $new_class->can('new');
+  # Add any helper that has been added already
+  _add_helper_method($_) for sort map { (split /\./, $_)[0] } keys %{$renderer->helpers};
 
-  warn qq/[FastHelpers] $new_class->isa("$superclass")\n/ if DEBUG;
-  eval qq(package $new_class;use Mojo::Base "$superclass";1) or die $@;
-  my %hidden;
-  for my $name (keys %{$app->renderer->helpers}) {
-    my ($method) = split /\./, $name;
-    if ($new_class->can($method)) {
-      warn qq/[FastHelpers] $new_class->can("$method")\n/ if DEBUG;
-    }
-    elsif ($new_class->isa('Mojolicious::Controller')) {
-      $hidden{$name} = 1;
-      monkey_patch $new_class, $method => $app->renderer->get_helper($method);
-    }
-    else {
-      $hidden{$name} = 1;
-      monkey_patch $new_class, $method => sub {
-        my $app    = shift;
-        my $helper = $app->renderer->get_helper($method);
-        $app->build_controller->$helper(@_);
-      };
-    }
+  state $patched = {};
+  return if $patched->{ref($renderer)}++;
+
+  # Add new helper methods when calling $app->helper(...)
+  my $orig = $renderer->can('add_helper');
+  monkey_patch $renderer => add_helper => sub {
+    my ($renderer, $name) = (shift, shift);
+    _add_helper_method($name);
+    $orig->($renderer, $name, @_);
+  };
+}
+
+sub _add_helper_classes {
+  my $self = shift;
+
+  for my $class (qw(Mojolicious Mojolicious::Controller)) {
+    my $helper_class = "${class}::_FastHelpers";
+    next if UNIVERSAL::isa($class, $helper_class);
+    eval "package $helper_class;1" or die $@;
+
+    monkey_patch $class => can => sub {
+      my ($self, $name, @rest) = @_;
+      return undef unless my $can = $self->SUPER::can($name, @rest);
+      return undef if $can eq ($helper_class->can($name) // '');    # Hiding helper methods from can()
+      return $can;
+    };
+
+    no strict 'refs';
+    unshift @{"${class}::ISA"}, $helper_class;
   }
+}
 
-  # Speed up $c->app() by avoiding Mojolicious::Plugin::FastHelpers::Controller->app()
-  $new_class->attr('app') if $new_class->isa('Mojolicious::Controller');
+sub _add_helper_method {
+  my $name = shift;
+  return if Mojolicious::_FastHelpers->can($name);                  # No need to add it again
 
-  # Hide helpers
-  monkey_patch $new_class, can => sub { return $hidden{$_[1]} ? undef : $_[0]->SUPER::can($_[1]) };
+  monkey_patch 'Mojolicious::_FastHelpers' => $name => sub {
+    my $app    = shift;
+    my $helper = $app->renderer->get_helper($name);
+    return $app->build_controller->$helper(@_);
+  };
 
-  return $new_class;
+  monkey_patch 'Mojolicious::Controller::_FastHelpers' => $name => sub {
+    return shift->helpers->$name(@_);
+  };
 }
 
 1;
@@ -69,45 +81,16 @@ Mojolicious::Plugin::FastHelpers - Faster helpers for your Mojolicious applicati
 =head2 Lite app
 
   use Mojolicious::Lite;
-
-  # Add your helpers
-  helper "what.ever" => sub { return 42 };
-
-  # Need to be called after all helpers have been added
   plugin "FastHelpers";
   app->start;
-
-=head2 Full app
-
-  package MyApp;
-  use Mojo::Base "Mojolicious";
-
-  sub startup {
-    my $app = shift;
-
-    # Add your helpers
-    $app->helper(whatever => sub { rand });
-
-    # Need to be called after all helpers have been added
-    $app->plugin("FastHelpers");
-  }
-
-  package MyApp::Controller::Test;
-
-  # Need to inherit from Mojolicious::Plugin::FastHelpers::Controller
-  # instead of Mojolicious::Controller
-  use Mojo::Base "Mojolicious::Plugin::FastHelpers::Controller";
-
-  # Add actions as you would normally do
-  sub my_action {
-    my $c = shift;
-    ...
-  }
 
 =head1 DESCRIPTION
 
 L<Mojolicious::Plugin::FastHelpers> is a L<Mojolicious> plugin which can speed
 up your helpers, by avoiding C<AUTOLOAD>.
+
+It does this by injecting some new classes into the inheritance tree of
+L<Mojolicious> and L<Mojolicious::Controller>.
 
 This module is currently EXPERIMENTAL. There might even be some security
 issues, so use it with care.
@@ -118,18 +101,18 @@ There is a benchmark test bundled with this distribution, if you want to run it
 yourself, but here is a quick overview:
 
   $ TEST_BENCHMARK=200000 prove -vl t/benchmark.t
-  ok 1 - fast_app 1.81834 wallclock secs ( 1.81 usr +  0.00 sys =  1.81 CPU) @ 110497.24/s (n=200000)
-  ok 2 - fast_controller 0.0192509 wallclock secs ( 0.02 usr +  0.00 sys =  0.02 CPU) @ 10000000.00/s (n=200000)
-  ok 3 - normal_app 2.02593 wallclock secs ( 2.02 usr +  0.00 sys =  2.02 CPU) @ 99009.90/s (n=200000)
-  ok 4 - normal_controller 0.619834 wallclock secs ( 0.62 usr +  0.00 sys =  0.62 CPU) @ 322580.65/s (n=200000)
-  ok 5 - fast_app (1.81s) is not slower than normal_app (2.02s)
-  ok 6 - fast_controller (0.02s) is not slower than normal_controller (0.62s)
+  ok 1 - App::Normal 2.27925 wallclock secs ( 2.21 usr +  0.02 sys =  2.23 CPU) @ 89686.10/s (n=200000)
+  ok 2 - Ctrl::Normal 0.720361 wallclock secs ( 0.70 usr +  0.01 sys =  0.71 CPU) @ 281690.14/s (n=200000)
+  ok 3 - App::FastHelpers 1.9004 wallclock secs ( 1.86 usr +  0.01 sys =  1.87 CPU) @ 106951.87/s (n=200000)
+  ok 4 - Ctrl::FastHelpers 0.353466 wallclock secs ( 0.35 usr +  0.01 sys =  0.36 CPU) @ 555555.56/s (n=200000)
+  ok 5 - App::FastHelpers (1.87s) is not slower than App::Normal (2.23s)
+  ok 6 - Ctrl::FastHelpers (0.36s) is not slower than Ctrl::Normal (0.71s)
 
-                          Rate normal_app fast_app normal_controller fast_controller
-  normal_app           99010/s         --     -10%              -69%            -99%
-  fast_app            110497/s        12%       --              -66%            -99%
-  normal_controller   322581/s       226%     192%                --            -97%
-  fast_controller   10000000/s     10000%    8950%             3000%              --
+                        Rate App::Normal App::FastHelpers Ctrl::Normal Ctrl::FastHelpers
+  App::Normal        89686/s          --             -16%         -68%              -84%
+  App::FastHelpers  106952/s         19%               --         -62%              -81%
+  Ctrl::Normal      281690/s        214%             163%           --              -49%
+  Ctrl::FastHelpers 555556/s        519%             419%          97%                --
 
 =head1 METHODS
 

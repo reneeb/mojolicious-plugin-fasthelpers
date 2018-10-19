@@ -5,22 +5,24 @@ use Mojolicious;
 
 plan skip_all => 'TEST_BENCHMARK=10000' unless my $n_times = $ENV{TEST_BENCHMARK};
 
-my %tests = (fast_app => app(), normal_app => app());
+my %tests = (App => app());
 my %res;
 
-$tests{fast_app}->plugin('FastHelpers');
-$tests{fast_controller}   = $tests{fast_app}->build_controller;
-$tests{normal_controller} = $tests{normal_app}->build_controller;
+$tests{Ctrl} = $tests{App}->build_controller;
 
-for my $name (sort keys %tests) {
-  my $obj = $tests{$name};
-  my $res = 0;
-  $res{$name} = timeit $n_times, sub { $res += $obj->dummy };
-  is $res, 42 * $n_times, sprintf '%s %s', $name, timestr $res{$name};
+for my $plugin (qw(Normal FastHelpers)) {
+  $tests{App}->plugin($plugin) if $plugin eq 'FastHelpers';
+  for my $part (sort keys %tests) {
+    my $name = join '::', $part, $plugin;
+    my $obj  = $tests{$part};
+    my $res  = 0;
+    $res{$name} = timeit $n_times, sub { $res += $obj->dummy };
+    is $res, 42 * $n_times, sprintf '%s %s', $name, timestr $res{$name};
+  }
 }
 
-compare(qw(fast_app normal_app));
-compare(qw(fast_controller normal_controller));
+compare(qw(App::FastHelpers App::Normal));
+compare(qw(Ctrl::FastHelpers Ctrl::Normal));
 cmpthese(\%res) if $ENV{HARNESS_IS_VERBOSE};
 
 done_testing;
