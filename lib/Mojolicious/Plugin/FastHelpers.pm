@@ -51,15 +51,19 @@ sub _add_helper_classes {
     no strict 'refs';
     unshift @{"${class}::ISA"}, $helper_class;
   }
+
+  # Change method to attr for extra speed
+  Mojolicious::Controller->attr(helpers => sub { $_[0]->app->renderer->get_helper('')->($_[0]) });
 }
 
 sub _add_helper_method {
   my $name = shift;
-  return if Mojolicious::_FastHelpers->can($name);                  # No need to add it again
+  return if Mojolicious::_FastHelpers->can($name);    # No need to add it again
 
   monkey_patch 'Mojolicious::_FastHelpers' => $name => sub {
-    my $app    = shift;
-    my $helper = $app->renderer->get_helper($name);
+    my $app = shift;
+    Carp::croak qq/Can't locate object method "$name" via package "@{[ref $app]}"/
+      unless my $helper = $app->renderer->get_helper($name);
     return $app->build_controller->$helper(@_);
   };
 
@@ -101,18 +105,18 @@ There is a benchmark test bundled with this distribution, if you want to run it
 yourself, but here is a quick overview:
 
   $ TEST_BENCHMARK=200000 prove -vl t/benchmark.t
-  ok 1 - App::Normal 2.27925 wallclock secs ( 2.21 usr +  0.02 sys =  2.23 CPU) @ 89686.10/s (n=200000)
-  ok 2 - Ctrl::Normal 0.720361 wallclock secs ( 0.70 usr +  0.01 sys =  0.71 CPU) @ 281690.14/s (n=200000)
-  ok 3 - App::FastHelpers 1.9004 wallclock secs ( 1.86 usr +  0.01 sys =  1.87 CPU) @ 106951.87/s (n=200000)
-  ok 4 - Ctrl::FastHelpers 0.353466 wallclock secs ( 0.35 usr +  0.01 sys =  0.36 CPU) @ 555555.56/s (n=200000)
-  ok 5 - App::FastHelpers (1.87s) is not slower than App::Normal (2.23s)
-  ok 6 - Ctrl::FastHelpers (0.36s) is not slower than Ctrl::Normal (0.71s)
+  ok 1 - App::Normal 2.1569 wallclock secs ( 2.13 usr +  0.01 sys =  2.14 CPU) @ 93457.94/s (n=200000)
+  ok 2 - Ctrl::Normal 0.772035 wallclock secs ( 0.75 usr +  0.00 sys =  0.75 CPU) @ 266666.67/s (n=200000)
+  ok 3 - App::FastHelpers 1.63732 wallclock secs ( 1.62 usr +  0.01 sys =  1.63 CPU) @ 122699.39/s (n=200000)
+  ok 4 - Ctrl::FastHelpers 0.131679 wallclock secs ( 0.13 usr +  0.00 sys =  0.13 CPU) @ 1538461.54/s (n=200000)
+  ok 5 - App::FastHelpers (1.63s) is not slower than App::Normal (2.14s)
+  ok 6 - Ctrl::FastHelpers (0.13s) is not slower than Ctrl::Normal (0.75s)
 
-                        Rate App::Normal App::FastHelpers Ctrl::Normal Ctrl::FastHelpers
-  App::Normal        89686/s          --             -16%         -68%              -84%
-  App::FastHelpers  106952/s         19%               --         -62%              -81%
-  Ctrl::Normal      281690/s        214%             163%           --              -49%
-  Ctrl::FastHelpers 555556/s        519%             419%          97%                --
+                         Rate App::Normal App::FastHelpers Ctrl::Normal Ctrl::FastHelpers
+  App::Normal         93458/s          --             -24%         -65%              -94%
+  App::FastHelpers   122699/s         31%               --         -54%              -92%
+  Ctrl::Normal       266667/s        185%             117%           --              -83%
+  Ctrl::FastHelpers 1538462/s       1546%            1154%         477%                --
 
 =head1 METHODS
 
